@@ -1,0 +1,92 @@
+//Creation&Computation
+// reads 1 sensor value from arduino
+//draws a circle based on the analog sensor value
+//requires p5.serialcontrol to be running
+//and arduino running the sensorOutput1 sketch
+ 
+var serial;       //variable to hold the serial port object
+var ardVal = [];  //array that will hold all values coming from arduino
+ 
+// server variables
+var myUserID;
+var dataServer;
+
+//name used to sort your messages. used like a radio station. can be called anything
+var channelName = "brush";
+ 
+function setup() {
+   
+  createCanvas(500,500);
+  //Setting up the serial port
+  serial = new p5.SerialPort();     //create the serial port object
+  serial.open("COM4"); //open the serialport. determined 
+  serial.on('open',ardCon);         //open the socket connection and execute the ardCon callback
+  serial.on('data',dataReceived);   //when data is received execute the dataReceived function
+  
+   // initialize pubnub
+  dataServer = PUBNUB.init(
+  {
+    publish_key   : 'pub-c-c79fc9e7-29aa-4379-99f1-a2e2f7d45259',  //get these from the pubnub account online
+    subscribe_key : 'sub-c-54ea7392-a60e-11e6-80e1-0619f8945a4f',  
+    uuid: myUserID,
+    ssl: true  //enables a secure connection. This option has to be used if using the OCAD webspace
+  });
+   
+  dataServer.subscribe(  //start listening to a specific channel
+  {
+    channel : channelName,     //this uses our variable to listen to the correct channel
+    message: readIncoming      //the value here must match up with the name of the function that handles the incoming data
+  });
+   
+  myUserID = PUBNUB.uuid();    //get my unique userID from pubnub
+  
+}
+ 
+function draw() {
+  
+  sendSensorVal();
+}
+ 
+function dataReceived()   //this function is called every time data is received
+{
+var rawData = serial.readStringUntil('\r\n'); //read the incoming string until it sees a newline
+   console.log(rawData);
+    if(rawData.length>1)                      //check that there is something in the string
+    {                                         //values received in pairs  index,value
+      console.log(rawData);
+      var incoming = rawData;      //split the string into components using the comma as a delimiter
+      for(var i=0;i<incoming.length;i++)
+      {
+      ardVal[i]=parseInt(incoming[i]);//convert the values to ints and put them into the ardVal array
+      }
+    }
+    
+}
+
+function sendSensorVal(){
+        // Send Data to the server to draw it in all other canvases
+  dataServer.publish(
+    {
+      channel: channelName,
+      message: {
+        userID: myUserID,       //set the message objects property name and value combos    
+         x : ardVal[0]
+      }
+    });
+    read();
+}
+ 
+function ardCon()
+{
+  console.log("connected to the arduino");
+}
+function read() {
+}
+function readIncoming(message){
+  if(message.userID != myUserID)
+  {
+    console.log(message.x);
+  }
+}
+
+
